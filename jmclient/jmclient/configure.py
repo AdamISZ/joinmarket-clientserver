@@ -125,6 +125,8 @@ rpc_wallet_file =
 [MESSAGING:server1]
 host = irc.darkscience.net
 channel = joinmarket-pit
+# channel_keyword is for testing, should not be set on mainnet
+#channel_keyword =
 port = 6697
 usessl = true
 socks5 = false
@@ -138,6 +140,8 @@ socks5_port = 9050
 [MESSAGING:server2]
 host = irc.hackint.org
 channel = joinmarket-pit
+# channel_keyword is for testing, should not be set on mainnet
+#channel_keyword =
 port = 6697
 usessl = true
 socks5 = false
@@ -154,6 +158,8 @@ socks5_port = 9050
 #[MESSAGING:server3]
 #host = agora.anarplex.net
 #channel = joinmarket-pit
+## channel_keyword is for testing, should not be set on mainnet
+##channel_keyword =
 #port = 14716
 #usessl = true
 #socks5 = false
@@ -444,7 +450,8 @@ def get_irc_mchannels():
             irc_sections.append(s)
     assert irc_sections
 
-    fields = [("host", str), ("port", int), ("channel", str), ("usessl", str),
+    fields = [("host", str), ("port", int), ("channel", str),
+              ("channel_keyword", str), ("usessl", str),
               ("socks5", str), ("socks5_host", str), ("socks5_port", str)]
 
     configs = []
