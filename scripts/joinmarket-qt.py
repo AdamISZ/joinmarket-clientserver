@@ -325,6 +325,14 @@ class SpendTab(QWidget):
         self.abortButton.setEnabled(False)
 
     def checkAddress(self, addr):
+        valid, errmsg = validate_address(str(addr))
+        if not valid:
+            JMQtMessageBox(self,
+                       "Bitcoin address not valid.\n" + errmsg,
+                       mbtype='warn',
+                       title="Error")
+
+    def parseURIAndValidateAddress(self, addr):
         addr = addr.strip()
         if btc.is_bip21_uri(addr):
             try:
@@ -347,12 +355,7 @@ class SpendTab(QWidget):
             self.bip21_uri = None
 
         self.addressInput.setText(addr)
-        valid, errmsg = validate_address(str(addr))
-        if not valid:
-            JMQtMessageBox(self,
-                       "Bitcoin address not valid.\n" + errmsg,
-                       mbtype='warn',
-                       title="Error")
+        checkAddress(addr)
 
     def checkAmount(self, amount_str):
         if not amount_str:
@@ -522,6 +525,7 @@ class SpendTab(QWidget):
         sch_buttons_box.setLayout(sch_buttons_layout)
         sch_layout.addWidget(sch_buttons_box, 0, 1, 1, 1)
 
+        #construct layout for single joins
         innerTopLayout = QGridLayout()
         innerTopLayout.setSpacing(4)
         self.single_join_tab.setLayout(innerTopLayout)
@@ -534,7 +538,7 @@ class SpendTab(QWidget):
             'The address or bitcoin: URI you want to send the payment to')
         self.addressInput = QLineEdit()
         self.addressInput.editingFinished.connect(
-            lambda: self.checkAddress(self.addressInput.text()))
+            lambda: self.parseURIAndValidateAddress(self.addressInput.text()))
         innerTopLayout.addWidget(recipientLabel, 1, 0)
         innerTopLayout.addWidget(self.addressInput, 1, 1, 1, 2)
 
@@ -573,6 +577,17 @@ class SpendTab(QWidget):
         innerTopLayout.addWidget(amountLabel, 4, 0)
         innerTopLayout.addWidget(self.amountInput, 4, 1, 1, 2)
 
+        changeLabel = QLabel('Change address')
+        changeLabel.setToolTip(
+            'Specify an address to receive change, rather ' +
+            'than sending it to the internal wallet.')
+        self.changeInput = QLineEdit()
+        self.changeInput.editingFinished.connect(
+            lambda: self.checkAddress(self.changeInput.text()))
+        self.changeInput.setPlaceholderText("(optional)")
+        innerTopLayout.addWidget(changeLabel, 5, 0)
+        innerTopLayout.addWidget(self.changeInput, 5, 1, 1, 2)
+
         self.startButton = QPushButton('Start')
         self.startButton.setToolTip(
             'If "checktx" is selected in the Settings, you will be \n'
@@ -588,7 +603,7 @@ class SpendTab(QWidget):
         buttons.addWidget(self.startButton)
         buttons.addWidget(self.abortButton)
         self.abortButton.clicked.connect(self.abortTransactions)
-        innerTopLayout.addLayout(buttons, 5, 0, 1, 2)
+        innerTopLayout.addLayout(buttons, 6, 0, 1, 2)
         splitter1 = QSplitter(QtCore.Qt.Vertical)
         self.textedit = QTextEdit()
         self.textedit.verticalScrollBar().rangeChanged.connect(
