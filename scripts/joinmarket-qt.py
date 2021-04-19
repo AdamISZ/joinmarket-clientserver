@@ -848,6 +848,7 @@ class SpendTab(QWidget):
             check_offers_callback = None
 
         destaddrs = self.tumbler_destaddrs if self.tumbler_options else []
+        custom_change = None if len(self.changeInput.text()) == 0 else self.changeInput.text()
         maxcjfee = get_max_cj_fee_values(jm_single().config, None,
                                          user_callback=self.getMaxCJFees)
         log.info("Using maximum coinjoin fee limits per maker of {:.4%}, {} "
@@ -860,6 +861,7 @@ class SpendTab(QWidget):
                                       self.takerInfo,
                                       self.takerFinished],
                            tdestaddrs=destaddrs,
+                           custom_change_address=custom_change,
                            ignored_makers=ignored_makers)
         if not self.clientfactory:
             #First run means we need to start: create clientfactory
