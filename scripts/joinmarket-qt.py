@@ -301,9 +301,10 @@ class SpendTab(QWidget):
         self.pjEndpointLabel.setVisible(True)
         self.pjEndpointInput.setVisible(True)
 
-        # while user is attempting a payjoin, address
+        # while user is attempting a payjoin, address/change
         # cannot be edited; to back out, they hit Abort.
         self.addressInput.setEnabled(False)
+        self.changeInput.setEnabled(False)
         self.abortButton.setEnabled(True)
 
     def switchToJoinmarket(self):
@@ -317,10 +318,12 @@ class SpendTab(QWidget):
         self.switchToJoinmarket()
         self.addressInput.setText('')
         self.amountInput.setText('')
+        self.changeInput.setText('')
         self.addressInput.setEnabled(True)
         self.pjEndpointInput.setEnabled(True)
         self.mixdepthInput.setEnabled(True)
         self.amountInput.setEnabled(True)
+        self.changeInput.setEnabled(True)
         self.startButton.setEnabled(True)
         self.abortButton.setEnabled(False)
 
@@ -779,6 +782,7 @@ class SpendTab(QWidget):
             self.pjEndpointInput.setEnabled(False)
             self.mixdepthInput.setEnabled(False)
             self.amountInput.setEnabled(False)
+            self.changeInput.setEnabled(False)
             self.startButton.setEnabled(False)
             d = task.deferLater(reactor, 0.0, send_payjoin, manager,
                     accept_callback=self.checkDirectSend,
