@@ -316,6 +316,7 @@ class Taker(object):
         else:
             #sweep
             self.input_utxos = self.wallet_service.get_utxos_by_mixdepth()[self.mixdepth]
+            self.my_change_addr = None
             #do our best to estimate the fee based on the number of
             #our own utxos; this estimate may be significantly higher
             #than the default set in option.txfee * makercount, where
