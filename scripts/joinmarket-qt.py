@@ -358,7 +358,7 @@ class SpendTab(QWidget):
             self.bip21_uri = None
 
         self.addressInput.setText(addr)
-        checkAddress(addr)
+        self.checkAddress(addr)
 
     def checkAmount(self, amount_str):
         if not amount_str:
