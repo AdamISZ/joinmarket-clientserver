@@ -53,6 +53,7 @@ def direct_send(wallet_service, amount, mixdepth, destination, answeryes=False,
     #Sanity checks
     assert validate_address(destination)[0] or is_burn_destination(destination)
     assert custom_change_addr is None or validate_address(custom_change_addr)[0]
+    assert amount > 0 or custom_change_addr is None
     assert isinstance(mixdepth, numbers.Integral)
     assert mixdepth >= 0
     assert isinstance(amount, numbers.Integral)

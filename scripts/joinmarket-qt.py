@@ -737,11 +737,13 @@ class SpendTab(QWidget):
         bip78url = self.pjEndpointInput.text()
 
         if makercount == 0 and not bip78url:
+            custom_change = None if len(self.changeInput.text()) == 0 else self.changeInput.text()
             try:
                 txid = direct_send(mainWindow.wallet_service, amount, mixdepth,
                                   destaddr, accept_callback=self.checkDirectSend,
                                   info_callback=self.infoDirectSend,
-                                  error_callback=self.errorDirectSend)
+                                  error_callback=self.errorDirectSend,
+                                  custom_change_addr=custom_change)
             except Exception as e:
                 JMQtMessageBox(self, e.args[0], title="Error", mbtype="warn")
                 return
