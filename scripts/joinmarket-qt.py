@@ -305,6 +305,7 @@ class SpendTab(QWidget):
         # cannot be edited; to back out, they hit Abort.
         self.addressInput.setEnabled(False)
         self.changeInput.setEnabled(False)
+        self.changeInput.clear()
         self.abortButton.setEnabled(True)
 
     def switchToJoinmarket(self):
@@ -580,7 +581,7 @@ class SpendTab(QWidget):
         innerTopLayout.addWidget(amountLabel, 4, 0)
         innerTopLayout.addWidget(self.amountInput, 4, 1, 1, 2)
 
-        changeLabel = QLabel('Change address')
+        changeLabel = QLabel('Custom change address')
         changeLabel.setToolTip(
             'Specify an address to receive change, rather ' +
             'than sending it to the internal wallet.')
