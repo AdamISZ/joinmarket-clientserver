@@ -301,9 +301,11 @@ class SpendTab(QWidget):
         self.pjEndpointLabel.setVisible(True)
         self.pjEndpointInput.setVisible(True)
 
-        # while user is attempting a payjoin, address
+        # while user is attempting a payjoin, address/change
         # cannot be edited; to back out, they hit Abort.
         self.addressInput.setEnabled(False)
+        self.changeInput.setEnabled(False)
+        self.changeInput.clear()
         self.abortButton.setEnabled(True)
 
     def switchToJoinmarket(self):
@@ -317,14 +319,24 @@ class SpendTab(QWidget):
         self.switchToJoinmarket()
         self.addressInput.setText('')
         self.amountInput.setText('')
+        self.changeInput.setText('')
         self.addressInput.setEnabled(True)
         self.pjEndpointInput.setEnabled(True)
         self.mixdepthInput.setEnabled(True)
         self.amountInput.setEnabled(True)
+        self.changeInput.setEnabled(True)
         self.startButton.setEnabled(True)
         self.abortButton.setEnabled(False)
 
     def checkAddress(self, addr):
+        valid, errmsg = validate_address(str(addr))
+        if not valid:
+            JMQtMessageBox(self,
+                       "Bitcoin address not valid.\n" + errmsg,
+                       mbtype='warn',
+                       title="Error")
+
+    def parseURIAndValidateAddress(self, addr):
         addr = addr.strip()
         if btc.is_bip21_uri(addr):
             try:
@@ -347,12 +359,7 @@ class SpendTab(QWidget):
             self.bip21_uri = None
 
         self.addressInput.setText(addr)
-        valid, errmsg = validate_address(str(addr))
-        if not valid:
-            JMQtMessageBox(self,
-                       "Bitcoin address not valid.\n" + errmsg,
-                       mbtype='warn',
-                       title="Error")
+        self.checkAddress(addr)
 
     def checkAmount(self, amount_str):
         if not amount_str:
@@ -522,6 +529,7 @@ class SpendTab(QWidget):
         sch_buttons_box.setLayout(sch_buttons_layout)
         sch_layout.addWidget(sch_buttons_box, 0, 1, 1, 1)
 
+        #construct layout for single joins
         innerTopLayout = QGridLayout()
         innerTopLayout.setSpacing(4)
         self.single_join_tab.setLayout(innerTopLayout)
@@ -534,7 +542,7 @@ class SpendTab(QWidget):
             'The address or bitcoin: URI you want to send the payment to')
         self.addressInput = QLineEdit()
         self.addressInput.editingFinished.connect(
-            lambda: self.checkAddress(self.addressInput.text()))
+            lambda: self.parseURIAndValidateAddress(self.addressInput.text()))
         innerTopLayout.addWidget(recipientLabel, 1, 0)
         innerTopLayout.addWidget(self.addressInput, 1, 1, 1, 2)
 
@@ -573,6 +581,17 @@ class SpendTab(QWidget):
         innerTopLayout.addWidget(amountLabel, 4, 0)
         innerTopLayout.addWidget(self.amountInput, 4, 1, 1, 2)
 
+        changeLabel = QLabel('Custom change address')
+        changeLabel.setToolTip(
+            'Specify an address to receive change, rather ' +
+            'than sending it to the internal wallet.')
+        self.changeInput = QLineEdit()
+        self.changeInput.editingFinished.connect(
+            lambda: self.checkAddress(self.changeInput.text()))
+        self.changeInput.setPlaceholderText("(optional)")
+        innerTopLayout.addWidget(changeLabel, 5, 0)
+        innerTopLayout.addWidget(self.changeInput, 5, 1, 1, 2)
+
         self.startButton = QPushButton('Start')
         self.startButton.setToolTip(
             'If "checktx" is selected in the Settings, you will be \n'
@@ -588,7 +607,7 @@ class SpendTab(QWidget):
         buttons.addWidget(self.startButton)
         buttons.addWidget(self.abortButton)
         self.abortButton.clicked.connect(self.abortTransactions)
-        innerTopLayout.addLayout(buttons, 5, 0, 1, 2)
+        innerTopLayout.addLayout(buttons, 6, 0, 1, 2)
         splitter1 = QSplitter(QtCore.Qt.Vertical)
         self.textedit = QTextEdit()
         self.textedit.verticalScrollBar().rangeChanged.connect(
@@ -719,11 +738,13 @@ class SpendTab(QWidget):
         bip78url = self.pjEndpointInput.text()
 
         if makercount == 0 and not bip78url:
+            custom_change = None if len(self.changeInput.text()) == 0 else self.changeInput.text()
             try:
                 txid = direct_send(mainWindow.wallet_service, amount, mixdepth,
                                   destaddr, accept_callback=self.checkDirectSend,
                                   info_callback=self.infoDirectSend,
-                                  error_callback=self.errorDirectSend)
+                                  error_callback=self.errorDirectSend,
+                                  custom_change_addr=custom_change)
             except Exception as e:
                 JMQtMessageBox(self, e.args[0], title="Error", mbtype="warn")
                 return
@@ -764,6 +785,7 @@ class SpendTab(QWidget):
             self.pjEndpointInput.setEnabled(False)
             self.mixdepthInput.setEnabled(False)
             self.amountInput.setEnabled(False)
+            self.changeInput.setEnabled(False)
             self.startButton.setEnabled(False)
             d = task.deferLater(reactor, 0.0, send_payjoin, manager,
                     accept_callback=self.checkDirectSend,
@@ -829,6 +851,7 @@ class SpendTab(QWidget):
             check_offers_callback = None
 
         destaddrs = self.tumbler_destaddrs if self.tumbler_options else []
+        custom_change = None if len(self.changeInput.text()) == 0 else self.changeInput.text()
         maxcjfee = get_max_cj_fee_values(jm_single().config, None,
                                          user_callback=self.getMaxCJFees)
         log.info("Using maximum coinjoin fee limits per maker of {:.4%}, {} "
@@ -841,6 +864,7 @@ class SpendTab(QWidget):
                                       self.takerInfo,
                                       self.takerFinished],
                            tdestaddrs=destaddrs,
+                           custom_change_address=custom_change,
                            ignored_makers=ignored_makers)
         if not self.clientfactory:
             #First run means we need to start: create clientfactory
@@ -1120,6 +1144,46 @@ class SpendTab(QWidget):
                 "Amount, in bitcoins, must be provided.",
                 mbtype='warn', title="Error")
             return False
+        if len(self.changeInput.text()) != 0:
+            change_addr = self.changeInput.text()
+            valid, errmsg = validate_address(change_addr)
+            if not valid:
+                JMQtMessageBox(self,
+                               "Custom change address is invalid: \"%s\"" % errmsg,
+                               mbtype='warn', title="Error")
+                return False
+
+            msg = """You are attempting to send change to a custom change address.
+Change outputs are usually directly linkable to your CoinJoin inputs,
+and incautious combination of custom change UTXOs can catastrophically
+compromise your CoinJoin privacy, especially if those UTXOs are from
+different mixdepths.
+
+Are you sure you know what you're doing?"""
+            reply = JMQtMessageBox(self, msg, mbtype='question', title="Warning")
+            if reply == QMessageBox.No:
+                return False
+
+            change_addr_obj = btc.CCoinAddress(change_addr)
+            if change_addr_obj.get_scriptPubKey_type() != "witness_v0_keyhash":
+                msg = """Your custom change address is not a native SegWit bech32 address.
+Be extremely careful here: It will be obvious to any blockchain
+observer that this output belongs to the taker (i.e. you) and is
+directly linkable to your CoinJoin inputs.
+
+Sending change in a one-off transaction to parties who do not
+support native SegWit P2WPKH addresses is otherwise probably OK.
+
+HOWEVER, if you regularly send your change to unusual address types,
+especially multisig P2SH addresses, you seriously risk linking ALL
+of those CoinJoins to you, REGARDLESS of how carefully you spend
+those custom change UTXOs.
+
+Are you sure you want to continue?"""
+                reply = JMQtMessageBox(self, msg, mbtype='question', title="Warning")
+                if reply == QMessageBox.No:
+                    return False
+
         return True
 
 class TxHistoryTab(QWidget):

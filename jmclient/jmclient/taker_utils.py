@@ -24,7 +24,7 @@ Currently re-used by CLI script tumbler.py and joinmarket-qt
 def direct_send(wallet_service, amount, mixdepth, destination, answeryes=False,
                 accept_callback=None, info_callback=None, error_callback=None,
                 return_transaction=False, with_final_psbt=False,
-                optin_rbf=False):
+                optin_rbf=False, custom_change_addr=None):
     """Send coins directly from one mixdepth to one destination address;
     does not need IRC. Sweep as for normal sendpayment (set amount=0).
     If answeryes is True, callback/command line query is not performed.
@@ -45,13 +45,15 @@ def direct_send(wallet_service, amount, mixdepth, destination, answeryes=False,
     1. False if there is any failure.
     2. The txid if transaction is pushed, and return_transaction is False,
        and with_final_psbt is False.
-    3. The full CMutableTransaction is return_transaction is True and
+    3. The full CMutableTransaction if return_transaction is True and
        with_final_psbt is False.
     4. The PSBT object if with_final_psbt is True, and in
        this case the transaction is *NOT* broadcast.
     """
     #Sanity checks
     assert validate_address(destination)[0] or is_burn_destination(destination)
+    assert custom_change_addr is None or validate_address(custom_change_addr)[0]
+    assert amount > 0 or custom_change_addr is None
     assert isinstance(mixdepth, numbers.Integral)
     assert mixdepth >= 0
     assert isinstance(amount, numbers.Integral)
@@ -77,6 +79,7 @@ def direct_send(wallet_service, amount, mixdepth, destination, answeryes=False,
 
     txtype = wallet_service.get_txtype()
     if amount == 0:
+        #doing a sweep
         utxos = wallet_service.get_utxos_by_mixdepth()[mixdepth]
         if utxos == {}:
             log.error(
@@ -105,10 +108,11 @@ def direct_send(wallet_service, amount, mixdepth, destination, answeryes=False,
                 + wallet_service.wallet.get_path_repr(path) \
                 + "\n\nWARNING: This transaction if broadcasted will PERMANENTLY DESTROY your bitcoins\n"
         else:
-            #regular send (non-burn)
+            #regular sweep (non-burn)
             fee_est = estimate_tx_fee(len(utxos), 1, txtype=txtype)
             outs = [{"address": destination, "value": total_inputs_val - fee_est}]
     else:
+        #not doing a sweep; we will have change
         #8 inputs to be conservative
         initial_fee_est = estimate_tx_fee(8,2, txtype=txtype)
         utxos = wallet_service.select_utxos(mixdepth, amount + initial_fee_est)
@@ -119,7 +123,8 @@ def direct_send(wallet_service, amount, mixdepth, destination, answeryes=False,
         total_inputs_val = sum([va['value'] for u, va in utxos.items()])
         changeval = total_inputs_val - fee_est - amount
         outs = [{"value": amount, "address": destination}]
-        change_addr = wallet_service.get_internal_addr(mixdepth)
+        change_addr = wallet_service.get_internal_addr(mixdepth) if custom_change_addr is None \
+                      else custom_change_addr
         outs.append({"value": changeval, "address": change_addr})
 
     #compute transaction locktime, has special case for spending timelocked coins
