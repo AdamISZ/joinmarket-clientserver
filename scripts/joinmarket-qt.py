@@ -1144,6 +1144,46 @@ class SpendTab(QWidget):
                 "Amount, in bitcoins, must be provided.",
                 mbtype='warn', title="Error")
             return False
+        if len(self.changeInput.text()) != 0:
+            change_addr = self.changeInput.text()
+            valid, errmsg = validate_address(change_addr)
+            if not valid:
+                JMQtMessageBox(self,
+                               "Custom change address is invalid: \"%s\"" % errmsg,
+                               mbtype='warn', title="Error")
+                return False
+
+            msg = """You are attempting to send change to a custom change address.
+Change outputs are usually directly linkable to your CoinJoin inputs,
+and incautious combination of custom change UTXOs can catastrophically
+compromise your CoinJoin privacy, especially if those UTXOs are from
+different mixdepths.
+
+Are you sure you know what you're doing?"""
+            reply = JMQtMessageBox(self, msg, mbtype='question', title="Warning")
+            if reply == QMessageBox.No:
+                return False
+
+            change_addr_obj = btc.CCoinAddress(change_addr)
+            if change_addr_obj.get_scriptPubKey_type() != "witness_v0_keyhash":
+                msg = """Your custom change address is not a native SegWit bech32 address.
+Be extremely careful here: It will be obvious to any blockchain
+observer that this output belongs to the taker (i.e. you) and is
+directly linkable to your CoinJoin inputs.
+
+Sending change in a one-off transaction to parties who do not
+support native SegWit P2WPKH addresses is otherwise probably OK.
+
+HOWEVER, if you regularly send your change to unusual address types,
+especially multisig P2SH addresses, you seriously risk linking ALL
+of those CoinJoins to you, REGARDLESS of how carefully you spend
+those custom change UTXOs.
+
+Are you sure you want to continue?"""
+                reply = JMQtMessageBox(self, msg, mbtype='question', title="Warning")
+                if reply == QMessageBox.No:
+                    return False
+
         return True
 
 class TxHistoryTab(QWidget):
