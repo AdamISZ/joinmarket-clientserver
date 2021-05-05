@@ -48,8 +48,12 @@ deps_install ()
         'libtool' \
         'libgmp-dev' \
         'python3-dev' \
-        'virtualenv' \
-        'python3-pip' )
+        'python3-pip' \
+        'python3-setuptools' \
+        'libltdl-dev' )
+
+    if [ "$with_jmvenv" == 1 ]; then common_deps+=("virtualenv"); fi
+    if [ "$with_sudo" == 1 ]; then common_deps+=("sudo"); fi
 
     darwin_deps=( \
         'automake' \
@@ -82,13 +86,18 @@ deb_deps_install ()
     deb_deps=( ${@} )
     if deb_deps_check; then
         clear
-        echo "
-            sudo password required to run :
+        sudo_command=''
+        if [ "$with_sudo" == 1 ]; then
+            echo "
+                sudo password required to run :
 
-            \`apt-get install ${deb_deps[@]}\`
-            "
-        if ! sudo apt-get install ${deb_deps[@]}; then
-            return 1
+                \`apt-get install ${deb_deps[@]}\`
+                "
+            sudo_command="sudo"
+        fi
+
+        if ! $sudo_command apt-get install -y --no-install-recommends ${deb_deps[@]}; then
+              return 1
         fi
     fi
 }
@@ -314,7 +323,8 @@ joinmarket_install ()
     fi
 
     for req in ${reqs[@]}; do
-        pip install -r "requirements/${req}" || return 1
+        if [ "$with_jmvenv" == 1 ]; then pip_command=pip; else pip_command=pip3; fi
+        $pip_command install -r "requirements/${req}" || return 1
     done
 
     if [[ ${with_qt} == "1" ]]; then
@@ -361,6 +371,10 @@ parse_flags ()
             --without-qt)
                 with_qt='0'
                 ;;
+            --docker-install)
+                with_sudo='0'
+                with_jmvenv='0'
+                ;;
             "")
                 break
                 ;;
@@ -370,11 +384,12 @@ Usage: "${0}" [options]
 
 Options:
 
---develop               code remains editable in place (currently always enabled)
+--develop        code remains editable in place (currently always enabled)
 --disable-secp-check    do not run libsecp256k1 tests (default is to run them)
---python, -p            python version (only python3 versions are supported)
---with-qt               build the Qt GUI
---without-qt            don't build the Qt GUI
+--python, -p     python version (only python3 versions are supported)
+--with-qt        build the Qt GUI
+--without-qt     don't build the Qt GUI
+--docker-install system wide install as root for minimal Docker installs
 "
                 return 1
                 ;;
@@ -426,23 +441,29 @@ install_get_os ()
 
 main ()
 {
-    jm_source="$PWD"
-    jm_root="${jm_source}/jmvenv"
-    jm_deps="${jm_source}/deps"
-    export PKG_CONFIG_PATH="${jm_root}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-    export LD_LIBRARY_PATH="${jm_root}/lib:${LD_LIBRARY_PATH}"
-    export C_INCLUDE_PATH="${jm_root}/include:${C_INCLUDE_PATH}"
-    export MAKEFLAGS='-j'
-
     # flags
     develop_build=''
     python='python3'
     use_secp_check='1'
     with_qt=''
+    with_jmvenv='1'
+    with_sudo='1'
     reinstall='false'
     if ! parse_flags ${@}; then
         return 1
     fi
+
+    jm_source="$PWD"
+    if [ "$with_jmvenv" == 1 ]; then
+        jm_root="${jm_source}/jmvenv"
+    else
+        jm_root=""
+    fi
+    jm_deps="${jm_source}/deps"
+    export PKG_CONFIG_PATH="${jm_root}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+    export LD_LIBRARY_PATH="${jm_root}/lib:${LD_LIBRARY_PATH}"
+    export C_INCLUDE_PATH="${jm_root}/include:${C_INCLUDE_PATH}"
+    export MAKEFLAGS='-j'
 
     # os check
     install_os="$( install_get_os )"
@@ -451,11 +472,13 @@ main ()
         echo "Dependecies could not be installed. Exiting."
         return 1
     fi
-    if ! venv_setup; then
-        echo "Joinmarket virtualenv could not be setup. Exiting."
-        return 1
+    if [ "$with_jmvenv" == 1 ]; then
+        if ! venv_setup; then
+            echo "Joinmarket virtualenv could not be setup. Exiting."
+            return 1
+        fi
+        source "${jm_root}/bin/activate"
     fi
-    source "${jm_root}/bin/activate"
     mkdir -p "deps/cache"
     pushd deps
     if ! libsecp256k1_install; then
@@ -473,15 +496,17 @@ main ()
     popd
     if ! joinmarket_install; then
         echo "Joinmarket was not installed. Exiting."
-        deactivate
+        if [ "$with_jmvenv" == 1 ]; then deactivate; fi
         return 1
     fi
-    deactivate
-    echo "Joinmarket successfully installed
-    Before executing scripts or tests, run:
+    if [ "$with_jmvenv" == 1 ]; then
+        deactivate
+        echo "Joinmarket successfully installed
+        Before executing scripts or tests, run:
 
-    \`source jmvenv/bin/activate\`
+        \`source jmvenv/bin/activate\`
 
-    from this directory, to activate virtualenv."
+        from this directory, to activate virtualenv."
+    fi
 }
 main ${@}
